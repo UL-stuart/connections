@@ -2,32 +2,64 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>SVG Card Flip</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Full-Screen SVG Flip Card</title>
+
   <style>
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background: #f0f0f0;
+    html, body {
       margin: 0;
-      font-family: system-ui, sans-serif;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background: #111;
+    }
+
+    /* Preload: hide content until we're ready */
+    body {
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    body.is-ready {
+      opacity: 1;
     }
 
     .card-scene {
-      perspective: 1500px;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      perspective: 2000px;
+    }
+
+    /* Static hover zone — DOES NOT rotate */
+    .card-hover {
+      /* Maintain correct aspect ratio (825×1125) and fill screen */
+      width: min(100vw, 100vh * (825/1125));
+      height: min(100vh, 100vw * (1125/825));
+      display: inline-block;
     }
 
     .card {
-      width: 412px;   /* half of 825, scaled proportionally */
-      height: 562px;  /* half of 1125 */
       position: relative;
+      width: 100%;
+      height: 100%;
       transform-style: preserve-3d;
-      transition: transform 0.6s ease;
+      /* Smooth flip easing */
+      transition: transform 0.7s cubic-bezier(0.23, 1, 0.32, 1);
       cursor: pointer;
+      will-change: transform;
     }
 
-    .card-scene:hover .card {
+    /* Desktop: hover flip on the NON-rotating wrapper */
+    body.enable-hover .card-hover:hover .card {
+      transform: rotateY(180deg);
+    }
+
+    /* Touch devices: tap-to-flip using .is-flipped class */
+    body.enable-touch .card.is-flipped {
       transform: rotateY(180deg);
     }
 
@@ -46,17 +78,27 @@
     .card-back {
       transform: rotateY(180deg);
     }
+
+    /* Respect prefers-reduced-motion */
+    @media (prefers-reduced-motion: reduce) {
+      .card {
+        transition: none;
+      }
+      body {
+        transition: none;
+      }
+    }
   </style>
 </head>
 <body>
 
   <div class="card-scene">
-    <div class="card">
+    <div class="card-hover">
+      <div class="card" id="card">
 
-      <!-- FRONT SIDE -->
-      <div class="card-face card-front">
-        <!-- FRONT SVG -->
-        <svg width="825" height="1125" viewBox="0 0 825 1125" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <!-- FRONT -->
+        <div class="card-face card-front">
+          <svg width="825" height="1125" viewBox="0 0 825 1125" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <rect width="825" height="1125" fill="#0A5BD1"/>
 <rect width="750" height="1050" transform="translate(38 37)" fill="#0A5BD1"/>
 <rect width="675" height="975" transform="translate(75 75)" fill="#0A5BD1"/>
@@ -157,12 +199,11 @@
 </defs>
 </svg>
 
-      </div>
+        </div>
 
-      <!-- BACK SIDE -->
-      <div class="card-face card-back">
-        <!-- BACK SVG -->
-        <svg width="825" height="1125" viewBox="0 0 825 1125" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <!-- BACK -->
+        <div class="card-face card-back">
+          <svg width="825" height="1125" viewBox="0 0 825 1125" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <rect width="825" height="1125" fill="#8F26A6"/>
 <rect width="750" height="1050" transform="translate(38 37)" fill="#8F26A6"/>
 <g filter="url(#filter0_d_524_278)">
@@ -244,10 +285,39 @@
 </defs>
 </svg>
 
-      </div>
+        </div>
 
+      </div>
     </div>
   </div>
 
+  <script>
+    // Preloading: fade in once everything is loaded
+    window.addEventListener('load', function () {
+      document.body.classList.add('is-ready');
+    });
+
+    const card = document.getElementById('card');
+
+    // Simple touch detection: prefer media query, fall back to ontouchstart
+    const isTouchDevice =
+      (window.matchMedia &&
+       window.matchMedia('(hover: none) and (pointer: coarse)').matches) ||
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0;
+
+    if (isTouchDevice) {
+      // Enable touch mode: tap-to-flip
+      document.body.classList.add('enable-touch');
+
+      card.addEventListener('click', function () {
+        card.classList.toggle('is-flipped');
+      });
+    } else {
+      // Enable desktop hover mode
+      document.body.classList.add('enable-hover');
+      // Hover is handled purely in CSS via .card-hover:hover .card
+    }
+  </script>
 </body>
 </html>
