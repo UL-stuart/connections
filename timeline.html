@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Incident Timeline Visualization</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        text-align: center;
+    }
+
+    h2 {
+        text-align: center;
+        margin-bottom: 10px;
+    }
+
+    svg {
+        display: block;
+        margin: 0 auto;
+    }
+
+    /* Tooltip styling */
+    .tooltip {
+        position: absolute;
+        background: #333;
+        color: #fff;
+        padding: 6px 10px;
+        border-radius: 4px;
+        pointer-events: none;
+        font-size: 13px;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    }
+</style>
+</head>
+
+<body>
+
+<h2>Incident Timeline per Player</h2>
+
+<svg id="timeline" width="1300" height="550"></svg>
+<div id="tooltip" class="tooltip"></div>
+
+<script>
+
+// ---------------------------
+// Data
+// ---------------------------
+
+const players = ["player1", "player2", "player3", "player4", "player5"];
+const events = [
+    "Anomaly Detection",
+    "Security Escalation",
+    "Breach Confirmation",
+    "Decision Point – Action vs Risk",
+    "Containment & Forensics",
+    "Recovery & Financial Planning",
+    "Restoration"
+];
+
+const times = {
+    "player1": [6, 20, 21, 22, 30, 36, 39],
+    "player2": [3, 19, 19, 17, 27, 32, 35],
+    "player3": [8, 18, 20, 23, 30, 36, 38],
+    "player4": [2, 9, 10, 11, 18, 30, 33],
+    "player5": [4, 13, 14, 14, 25, 29, 34],
+};
+
+// ---------------------------
+// SVG Setup
+// ---------------------------
+
+const svg = d3.select("#timeline");
+const tooltip = d3.select("#tooltip");
+
+const w = +svg.attr("width");
+const h = +svg.attr("height");
+
+const paddingLeft = 160;
+const paddingRight = 260; // ensures legend is visible
+const paddingTop = 80;
+const rowHeight = 80;
+
+const maxTime = 40;
+
+// Scale
+const x = d3.scaleLinear()
+    .domain([0, maxTime])
+    .range([paddingLeft, w - paddingRight]);
+
+// Axis at bottom
+svg.append("g")
+    .attr("transform", `translate(0, ${h - 80})`)
+    .call(d3.axisBottom(x).ticks(10));
+
+// Color scale
+const eventColors = d3.scaleOrdinal(d3.schemeCategory10).domain(events);
+
+// ---------------------------
+// Draw Timelines + Dots
+// ---------------------------
+
+players.forEach((player, i) => {
+
+    const y = (h - 120) - (players.length - 1 - i) * rowHeight;
+    const t = times[player];
+
+    // Horizontal line
+    svg.append("line")
+        .attr("x1", x(0))
+        .attr("x2", x(t[t.length - 1]))
+        .attr("y1", y)
+        .attr("y2", y)
+        .attr("stroke", "#aa8")
+        .attr("stroke-width", 2);
+
+    // Player label
+    svg.append("text")
+        .attr("x", paddingLeft - 20)
+        .attr("y", y + 5)
+        .attr("text-anchor", "end")
+        .style("font-size", "14px")
+        .text(player);
+
+    // Start green dot
+    svg.append("circle")
+        .attr("cx", x(0))
+        .attr("cy", y)
+        .attr("r", 10)
+        .attr("fill", "green");
+
+    // Event dots (with sanitized class names)
+    events.forEach((event, idx) => {
+
+        const time = t[idx];
+        const isRestoration = event === "Restoration";
+
+        // Sanitize event name for CSS class
+        const safeClass = event.replace(/[^a-zA-Z0-9]/g, "_");
+
+        svg.append("circle")
+            .attr("cx", x(time))
+            .attr("cy", y)
+            .attr("r", isRestoration ? 10 : 6)
+            .attr("fill", eventColors(event))
+            .attr("class", `event-dot ${safeClass}`)
+            .attr("data-event", event)
+            .attr("data-time", time)
+            .attr("data-class", safeClass);
+
+        // Label restoration
+        if (isRestoration) {
+            svg.append("text")
+                .attr("x", x(time) + 10)
+                .attr("y", y - 10)
+                .text(time)
+                .style("font-size", "12px");
+        }
+    });
+});
+
+
+// ---------------------------
+// Legend
+// ---------------------------
+
+const legendX = w - paddingRight + 50;
+let legendY = paddingTop;
+
+svg.append("text")
+    .attr("x", legendX)
+    .attr("y", legendY)
+    .text("Events")
+    .style("font-weight", "bold")
+    .style("font-size", "18px");
+
+legendY += 25;
+
+events.forEach(event => {
+    svg.append("circle")
+        .attr("cx", legendX)
+        .attr("cy", legendY)
+        .attr("r", 7)
+        .attr("fill", eventColors(event));
+
+    svg.append("text")
+        .attr("x", legendX + 20)
+        .attr("y", legendY + 5)
+        .text(event)
+        .style("font-size", "14px");
+
+    legendY += 24;
+});
+
+// Start legend entry
+svg.append("circle")
+    .attr("cx", legendX)
+    .attr("cy", legendY)
+    .attr("r", 7)
+    .attr("fill", "green");
+
+svg.append("text")
+    .attr("x", legendX + 20)
+    .attr("y", legendY + 5)
+    .text("Start")
+    .style("font-size", "14px");
+
+
+// ---------------------------
+// INTERACTION: Hover highlight + tooltip
+// ---------------------------
+
+d3.selectAll(".event-dot")
+    .on("mouseover", function (eventRaw) {
+
+        const eventType = d3.select(this).attr("data-event");
+        const eventTime = d3.select(this).attr("data-time");
+        const safeClass = d3.select(this).attr("data-class");
+
+        // Fade all dots
+        d3.selectAll(".event-dot")
+            .transition().duration(120)
+            .style("opacity", 0.2);
+
+        // Highlight matching event class
+        d3.selectAll("." + safeClass)
+            .transition().duration(120)
+            .style("opacity", 1)
+            .attr("r", 10);
+
+        // Tooltip
+        tooltip
+            .style("opacity", 1)
+            .html(`<strong>${eventType}</strong><br>${eventTime} min`)
+            .style("left", (eventRaw.pageX + 12) + "px")
+            .style("top", (eventRaw.pageY - 28) + "px");
+    })
+    .on("mousemove", function(eventRaw) {
+        tooltip
+            .style("left", (eventRaw.pageX + 12) + "px")
+            .style("top", (eventRaw.pageY - 28) + "px");
+    })
+    .on("mouseout", function () {
+
+        // Reset dots
+        d3.selectAll(".event-dot")
+            .transition().duration(120)
+            .style("opacity", 1)
+            .attr("r", function() {
+                const ev = d3.select(this).attr("data-event");
+                return ev === "Restoration" ? 10 : 6;
+            });
+
+        tooltip.style("opacity", 0);
+    });
+
+</script>
+
+</body>
+</html>
+
